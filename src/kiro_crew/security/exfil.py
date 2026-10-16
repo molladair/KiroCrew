@@ -1801,8 +1801,24 @@ if TYPE_CHECKING:  # every owner-defined name in _EXPORTS, for type checkers and
         _BASH_EXFIL_RULE_BY_PATTERN,
         _CARVEOUT_VERBS,
         _DATA_EXFIL_FILE_BODY_RULE,
+        _GH_FILE_BODY_RULE,
+        _GH_FILE_BODY_SUBCOMMANDS,
+        _GH_VALUE_FLAGS,
+        _GH_VALUE_OPTIONS,
+        _LEADING_WORDS,
         _data_at_carveout_allows,
         _exfil_rule_id_for_match,
+        _gh_argvs,
+        _gh_field_reads_file,
+        _gh_file_body_flag,
+        _gh_release_action,
+        _gh_short_cluster,
+        _is_assignment,
+        _may_run_gh,
+        _names_stdin,
+        _redirect_target_at,
+        _skip_heredoc_bodies,
+        _word_text,
         audit_bash_exfiltration,
     )
     from kiro_crew.security.exfil_oauth import (  # noqa: F401
@@ -1848,6 +1864,8 @@ if TYPE_CHECKING:  # project names it serves from outside its owners, from their
         _INERT_SEARCH_VERBS,
         _exception_eligible,
     )
+    from kiro_crew.security.shell_commands import SUBST as _SUBST  # noqa: F401
+    from kiro_crew.security.shell_commands import ShellWord as _ShellWord  # noqa: F401
     from kiro_crew.security.shell_commands import read_commands as _read_commands  # noqa: F401
     from kiro_crew.sel import (  # noqa: F401
         SecurityEvent,

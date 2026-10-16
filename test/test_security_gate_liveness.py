@@ -546,7 +546,19 @@ def _url_payload_command(n: int) -> str:
 #: reader (words with quote state and raw offsets, redirections, the live separator)
 #: that the ``rm`` floor's segment walk moved into, net of the walk it replaced, and
 #: the carve-out's first word in ``exfil_bash``. No rule, pattern or verdict moved.
-_PACKAGE_LINE_BUDGET = 32_793
+#:
+#: Raised again, from 32,793, by 306 for gh's body-from-file flags in ``exfil_bash``
+#: (`--input`, `--field k=@f`, `release --notes-file`): one matcher keyed to a plain
+#: `gh` program word, reading each command's argv through ``shell_commands`` (so a
+#: redirection, a leading one included, is never the program word); gh's own flag
+#: parsing (short-flag clusters, `release download -p`); its catalog row, kept out of
+#: the regex tier; and the ``is_denied`` floor that runs the same matcher for script
+#: hooks. A here-document body is cut from the command stream so reading resumes after
+#: it, but an unquoted tag's body is re-read as double-quoted text (its substitutions
+#: are checked) and a quoted `$(…)`/backtick body is re-read past an inner `<<`; the
+#: command is read once per here-document, taking each live `<<` from the reader's own
+#: stop point. No existing pattern or pass moved.
+_PACKAGE_LINE_BUDGET = 33_099
 
 #: Ceiling on any ONE file in the package. This is what the bound is really for --
 #: a package total says nothing about a single file growing back into a second
