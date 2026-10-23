@@ -548,7 +548,14 @@ def _url_payload_command(n: int) -> str:
 #: the carve-out's first word in ``exfil_bash``. No rule, pattern or verdict moved.
 #: Raised by 5, from 32,793, for ``vm_stat``, ``uptime`` and ``free`` in the read-only
 #: allowlist of ``readonly_bash`` plus their two-line note. Table data, no matcher change.
-_PACKAGE_LINE_BUDGET = 32_798
+#:
+#: Set to the true count, 32,817: the package is 32,798 lines without
+#: ``readonly_bash.command_names_git``, the no-approver hook surface's fail-closed
+#: git check, which adds 19: it folds a line continuation, removes the quotes and
+#: backslashes the shell removes, and refuses whenever ``git`` is left anywhere in
+#: the text. It parses no shell grammar, so it refuses more than it must rather than
+#: less.
+_PACKAGE_LINE_BUDGET = 32_817
 
 #: Ceiling on any ONE file in the package. This is what the bound is really for --
 #: a package total says nothing about a single file growing back into a second
