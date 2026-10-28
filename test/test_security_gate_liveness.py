@@ -557,7 +557,7 @@ def _url_payload_command(n: int) -> str:
 #: ``_CREW_SECRET_LEAVES`` entry in ``paths_lists``:
 #: the mediated-secret request directory (``secret-request-policy``), denied to the
 #: agent file tools as a whole. Data, not rule logic: the matcher is unchanged.
-#: Raised by 171, from 32,802, for ``s3_direction``: the fail-closed reader that
+#: Raised by 189, from 32,802, for ``s3_direction``: the fail-closed reader that
 #: narrows the three ``aws s3 cp|mv|sync`` upload rows away on a download. It
 #: reads only plain literal words (the shared quote walk, ``shlex`` for the split),
 #: a fixed aws CLI flag table and exactly two operands, and refuses everything
@@ -565,8 +565,11 @@ def _url_payload_command(n: int) -> str:
 #: branch in ``deny_gate``'s narrowing adapter, the raw command it is handed so
 #: a character that case-folds to ASCII is refused, ``EffectiveDenied`` so only a
 #: shipped row narrows (an operator's identical copy stays denied), and one facade
-#: import. A regex alternative was tried first and lost twice to bash word splitting.
-_PACKAGE_LINE_BUDGET = 32_973
+#: import. It reads POSIX shell only, so it narrows nothing on Windows, where a
+#: hook runs under cmd.exe, and its verdict is cached once per command so a
+#: command of many segments is not re-read per segment. A regex alternative was
+#: tried first and lost twice to bash word splitting.
+_PACKAGE_LINE_BUDGET = 32_991
 
 #: Ceiling on any ONE file in the package. This is what the bound is really for --
 #: a package total says nothing about a single file growing back into a second
