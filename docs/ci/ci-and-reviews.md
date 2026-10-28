@@ -1057,13 +1057,13 @@ label. Boot-matrix rollback restores `runs-on: ${{ matrix.os }}`. Keep the test
 arguments and coverage unchanged. A rejected webhook leaves a job queued before
 its timeout starts; diagnose or roll back rather than raising that timeout.
 
-### Larger runners for the review lanes and CodeQL
+### Larger runners for the review lanes, CodeQL and the merge path
 
-Twenty-five `runs-on` sites draw on the `kirocrew-runners` larger-runner group
+Thirty `runs-on` sites draw on the `kirocrew-runners` larger-runner group
 rather than `ubuntu-latest`, and five more reach it conditionally as a fallback
-(see **Five sites reach the group by LABEL** below), so thirty sites in all
+(see **Five sites reach the group by LABEL** below), so thirty-five sites in all
 can land on its cap -- which is the figure **Capacity** below is about. The
-twenty-five are the six fork review lanes (`fork-opus-review`,
+thirty are the six fork review lanes (`fork-opus-review`,
 `fork-gpt-review`, `fork-first-principles-review`, `fork-design-review`,
 `fork-ux-review`, and the three credentialed jobs of
 `fork-security-scope-review` -- `generate`, `validate` and `publish`), the five
@@ -1072,7 +1072,11 @@ same-repo review lanes (`codex-review`, `claude-review`,
 `docker-smoke.yml` jobs, five jobs of `release.yml` (`version`,
 `resolve-promotion`, `stable-gate`, `github-release`, `record-promotion`), and
 the four fork helpers (`fork-internal-content-scan`, `fork-pr-description`'s
-`describe`, and `fork-workflow-guard`'s `guard` and `strip-stale-override`).
+`describe`, and `fork-workflow-guard`'s `guard` and `strip-stale-override`), and
+the five merge-path utility lanes (`issue-gate`, `pr-size-override`'s `record`,
+`disposition-deferral-check`'s `validate-deferral`,
+`sensitive-change-review-comment`'s `rerun`, and `merged-readiness-audit`'s
+`audit`).
 
 **Why those five release jobs.** They are the release path's coordination jobs,
 and they are here for capacity rather than isolation. A fleet route is gated on
@@ -1091,6 +1095,37 @@ only alternative to this group. Two of them can hold a merge --
 fork pull request, and `fork-workflow-guard` posts a fork pull request's own
 check-run.
 
+**Why the merge path.** These five are the clearest case for a latency
+carve-out, because their work is seconds long and almost all of their wall clock
+is queue wait. Over a 24-hour window `issue-gate` held about 4 concurrent
+*runs* while occupying about 0.3 concurrent *runners*, so roughly nine tenths of
+each run was spent waiting for a machine it needed for a quarter of a minute.
+Every one of them sits where a person is already waiting: `issue-gate` feeds the
+required `PR Readiness` status, the two comment handlers are what a maintainer's
+own `/pr-size approve` or re-run comment triggers, and `merged-readiness-audit`
+records the readiness a merge landed with, which is a worse record taken late.
+They add little to the group for the same reason they gain: the compute they
+move is a fraction of a slot, not the queue they leave. Cheap is not free,
+though, so read **Capacity** below before adding anything else to this list: a
+lane this small still queues behind our own cap once the definition is at its
+ceiling, and these lanes feed the merge gate.
+
+`PR Size` is not on this list even though it is a merge-path check: since
+`pr-policy.yml` folded it in, it runs as a step of the fleet-routed `PR Policy`
+job rather than a hosted lane of its own.
+
+**Two merge-path lanes stay on `ubuntu-latest` deliberately.**
+`pr-readiness-sweep` is the only one of the group that nobody is waiting on: it
+runs on a cadence, and at a median of about fifteen minutes per run it would
+cost more billed minutes than every other merge-path lane combined while gaining
+the least. `merge-queue-readiness`'s `readiness` job polls rather than computes,
+holding its slot until the slowest lane it waits on finishes, up to a 205-minute
+cap. Since it waits on lanes that are themselves on this group, putting it here
+once `MERGE_QUEUE_ENABLED` is `'true'` would let each queued pull request's
+poller occupy a slot the lanes it waits for need, so the queue could starve
+itself until that timeout. Revisit it when the merge queue is actually enabled
+and the group has headroom, not before.
+
 **Before moving a NEW site here, check two shapes that cannot reach the group
 at all.** It is org-scoped, so a personal fork -- which sits outside the org --
 can never obtain a runner from it, and a job that asks for one queues until the
@@ -1108,11 +1143,17 @@ an `if` requiring `head.repo.full_name != github.repository`, which is false
 inside a fork -- which is why they are the ones that moved.
 
 **This test governs what may be ADDED; it does not describe what the group
-already holds.** Thirteen of the sites listed above can be started by a
+already holds.** Seventeen of the sites listed above can be started by a
 personal fork: the five same-repo review lanes, `codeql.yml`'s `analyze` and
 both `docker-smoke.yml` jobs all fire on `pull_request` with no head-repository
-check, and `release.yml`'s five jobs start on a `v*` tag push, which a fork
-owner can make in their own fork. None of them was admitted under this test,
+check, `release.yml`'s five jobs start on a `v*` tag push, which a fork
+owner can make in their own fork, and four of the merge-path lanes are
+repository-ungated too -- `issue-gate` on `pull_request`, and
+`pr-size-override`, `disposition-deferral-check` and
+`sensitive-change-review-comment` on `issue_comment`, which a fork owner fires
+by commenting on a pull request of their own. (`merged-readiness-audit` is the
+one that is gated, by `github.repository == 'kirodotdev/KiroCrew'`.) None of
+them was admitted under this test,
 and their fork-side queueing is accepted, on the same ground as the fork
 helpers' own narrower gap (a pull request opened from a third repository INTO a
 personal fork does start them): the stall is confined to that fork, where its
@@ -1160,9 +1201,9 @@ CodeQL has no second scan to fall back to either, since GitHub's default setup
 is off. If the group does not admit the repository, or is at its
 `maximum_runners` cap, restore `runs-on: ubuntu-latest` on the affected line at
 once rather than waiting to see whether the queue clears -- for any of the
-twenty-five sites, not just CodeQL. The five label-routed sites below are covered
-by the same rule but have their own recipe, since a whole-line replacement there
-would take the fleet route out with it.
+thirty group-targeted sites, not just CodeQL. The five label-routed sites below
+are covered by the same rule but have their own recipe, since a whole-line
+replacement there would take the fleet route out with it.
 
 **Nothing gets faster.** A public-repository `ubuntu-latest` is already 4 vCPU
 and 16 GB, and `kirocrew-linux-4-core` is the same CPU and memory with roughly
@@ -1330,13 +1371,15 @@ than waiting out the timeout.
 **Moving one of these lanes again means updating a ratchet.**
 `test/test_ci_fleet_routing_expression_parity.py` keeps `_PERMANENT_EXCEPTIONS`,
 the set of jobs that must stay off the CodeBuild fleet, and pins each one's
-expected `runs-on` so a silent re-route fails review. Twelve of the lanes moved
-here are in that set -- `first-principles-review`, `ux-review`,
-`design-review`, the five `release.yml` jobs and the four fork helpers -- so
-their expected value lives in
-`_HOSTED_EXCEPTION_RUNNERS` rather than the `ubuntu-latest` default. Staying off
-the fleet is what that set guarantees; a larger runner is still GitHub-hosted,
-so the isolation contract is unchanged and only the pinned value moves. Change a runner on one of those jobs
+expected `runs-on` so a silent re-route fails review. Seventeen of the lanes
+moved here are in that set -- `first-principles-review`, `ux-review`,
+`design-review`, the five `release.yml` jobs, the four fork helpers and the five
+merge-path lanes -- so their expected value lives in
+`_HOSTED_EXCEPTION_RUNNERS` rather than the `ubuntu-latest` default. A runner
+may only be pinned for a job that set names, so joining it is what lets a lane
+be pinned at all. Staying off the fleet is what that set guarantees; a larger
+runner is still GitHub-hosted, so the isolation contract is unchanged and only
+the pinned value moves. Change a runner on one of those jobs
 without changing the pin and the gate reds with
 `hosted exception changed runner`, which is the ratchet working.
 

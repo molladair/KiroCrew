@@ -542,7 +542,8 @@ def test_the_handler_is_comment_triggered_and_gated_on_the_command() -> None:
     (job,) = wf["jobs"].values()
     assert "github.event.issue.pull_request != null" in job["if"]
     assert "startsWith(github.event.comment.body, '/pr-size approve')" in job["if"]
-    assert job["runs-on"] == "ubuntu-latest"
+    # Hosted, never the fleet: any commenter can fire this event.
+    assert job["runs-on"] == {"group": "kirocrew-runners"}
     assert wf["permissions"] == {"actions": "write", "contents": "read", "pull-requests": "write"}
 
 

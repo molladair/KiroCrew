@@ -155,6 +155,16 @@ _PERMANENT_EXCEPTIONS = {
     ("fork-pr-description.yml", "describe"),
     ("fork-workflow-guard.yml", "guard"),
     ("fork-workflow-guard.yml", "strip-stale-override"),
+    # The merge-path utility lanes, with `disposition-deferral-check` above
+    # already a member. Each is seconds of work whose wall clock is almost all
+    # queue wait, and each sits where a human is waiting to merge, so they moved
+    # to the larger-runner group for queue position. Membership here is what
+    # lets the pin below exist: a runner may only be pinned for a job this set
+    # names.
+    ("issue-gate.yml", "issue-gate"),
+    ("pr-size-override.yml", "record"),
+    ("sensitive-change-review-comment.yml", "rerun"),
+    ("merged-readiness-audit.yml", "audit"),
 }
 
 # A permanent exception stays OFF the CodeBuild fleet; it does not have to stay
@@ -176,6 +186,11 @@ _HOSTED_EXCEPTION_RUNNERS: dict[tuple[str, str], object] = {
     ("fork-pr-description.yml", "describe"): {"group": "kirocrew-runners"},
     ("fork-workflow-guard.yml", "guard"): {"group": "kirocrew-runners"},
     ("fork-workflow-guard.yml", "strip-stale-override"): {"group": "kirocrew-runners"},
+    ("issue-gate.yml", "issue-gate"): {"group": "kirocrew-runners"},
+    ("pr-size-override.yml", "record"): {"group": "kirocrew-runners"},
+    ("disposition-deferral-check.yml", "validate-deferral"): {"group": "kirocrew-runners"},
+    ("sensitive-change-review-comment.yml", "rerun"): {"group": "kirocrew-runners"},
+    ("merged-readiness-audit.yml", "audit"): {"group": "kirocrew-runners"},
 }
 _DEFAULT_HOSTED_EXCEPTION_RUNNER = "ubuntu-latest"
 
