@@ -689,7 +689,7 @@ _BASE_SURFACE: dict[str, tuple[tuple[str, str, str], ...]] = {
         (
             "_route_subagent_to_tab",
             "async method",
-            "(self, info: 'SubagentInfo', *, announce: 'str', body: 'str', title: 'str', sub_meta: 'dict[str, Any]', _flush_only: 'bool', _injection_slot: 'Any', _injection_slot_name: 'str', parent_key: 'str') -> 'None'",
+            "(self, info: 'SubagentInfo', *, announce: 'str', body: 'str', title: 'str', sub_meta: 'dict[str, Any]', _flush_only: 'bool', _injection_slot: 'Any', _injection_slot_name: 'str', parent_key: 'str') -> 'asyncio.Task[None] | None'",
         ),
         (
             "_inject_subagent_into_channel_parent",
@@ -700,6 +700,16 @@ _BASE_SURFACE: dict[str, tuple[tuple[str, str, str], ...]] = {
             "_finish_subagent_cron_or_notify",
             "async method",
             "(self, info: 'SubagentInfo', *, announce: 'str', body: 'str', title: 'str', parent_key: 'str') -> 'None'",
+        ),
+        (
+            "_reset_cron_parent_when_idle",
+            "async method",
+            "(self, info: 'SubagentInfo', parent_key: 'str', *, skip_if_busy: 'bool' = False) -> 'None'",
+        ),
+        (
+            "_route_cron_parent_to_tab",
+            "async method",
+            "(self, info: 'SubagentInfo', *, parent_key: 'str', **route_kwargs: 'Any') -> 'None'",
         ),
     ),
     "runtime_charge": (
