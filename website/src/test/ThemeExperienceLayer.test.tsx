@@ -126,11 +126,52 @@ describe('ThemeExperienceLayer', () => {
     expect(fs.some((f) => f.getAttribute('src') === '/api/theme/bikini-bottom/topbar/dark')).toBe(true)
   })
 
-  it('"Keep colors only" reverts the selection', async () => {
+  it('"Keep colors only" keeps the theme and mounts nothing of the experience', async () => {
+    setTheme()
+    const { container } = render(<ThemeExperienceLayer />)
+    await userEvent.click(screen.getByRole('button', { name: /keep colors only/i }))
+    // The selection stays: the palette is useTheme's, and nothing switches it away.
+    expect(setColorTheme).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(frames(container)).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /mute|unmute/i })).not.toBeInTheDocument()
+    // No grant is written, so the persona is never sent on the chat wire.
+    expect(localStorage.getItem('mc-theme-consent-bikini-bottom')).toBeNull()
+    expect(localStorage.getItem('mc-theme-experience-declined-bikini-bottom')).toBe('consented-v2')
+  })
+
+  it('Escape keeps only the colors, like the button', async () => {
     setTheme()
     render(<ThemeExperienceLayer />)
-    await userEvent.click(screen.getByRole('button', { name: /keep colors only/i }))
-    expect(setColorTheme).toHaveBeenCalledWith('emerald')
+    await userEvent.keyboard('{Escape}')
+    expect(setColorTheme).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(localStorage.getItem('mc-theme-experience-declined-bikini-bottom')).toBe('consented-v2')
+  })
+
+  it('a stored "Keep colors only" answer suppresses the dialog on the next load', () => {
+    localStorage.setItem('mc-theme-experience-declined-bikini-bottom', 'consented-v2')
+    setTheme()
+    const { container } = render(<ThemeExperienceLayer />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(frames(container)).toHaveLength(0)
+  })
+
+  it('a decline bound to an older persona asks again and is dropped', () => {
+    localStorage.setItem('mc-theme-experience-declined-bikini-bottom', 'old-sha')
+    setTheme({ assets: l2Assets({ personaInfo: { sha256: 'new-sha', chars: 4, text: 'boo!' } }) })
+    render(<ThemeExperienceLayer />)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(localStorage.getItem('mc-theme-experience-declined-bikini-bottom')).toBeNull()
+  })
+
+  it('Enable after a decline clears the decline', async () => {
+    localStorage.setItem('mc-theme-experience-declined-bikini-bottom', 'other')
+    setTheme()
+    render(<ThemeExperienceLayer />)
+    await userEvent.click(screen.getByRole('button', { name: /enable experience/i }))
+    expect(localStorage.getItem('mc-theme-consent-bikini-bottom')).toBe('consented-v2')
+    expect(localStorage.getItem('mc-theme-experience-declined-bikini-bottom')).toBeNull()
   })
 
   it('suppresses motion overlays under prefers-reduced-motion (topbar still shown)', () => {

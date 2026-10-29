@@ -265,6 +265,19 @@ dashboard load into header-only round trips.
   boolean `theme_consent` request field is still parsed for backward-compatible
   bodies/logging but **grants no injection on its own**.
 
+  **"Keep colors only".** The modal's other answer (also Escape) keeps the pack
+  selected: its palette, branding and `overrides.css` stay applied by
+  `useTheme`, and every Level-2 feature stays off — no persona (no grant is
+  written, so nothing reaches `theme_consent_sha`), no sounds, no overlays, no
+  topbar, no mute button. The answer is stored per slug under
+  `mc-theme-experience-declined-<slug>`, bound to the same token a grant would
+  be, so the modal does not return on every load and a pack whose persona
+  changes asks again. It is a separate key from the grant on purpose: the chat
+  client transmits the raw grant, and a decline must never read as one.
+  `useTheme.setColorTheme` clears it when the user picks that pack again, which
+  is the way back to the experience; the boot restore of a persisted selection
+  does not.
+
   **All personas come from installed packs** and are content-bound
   consent-gated by the mechanism above — there is **no built-in / unconditional
   persona path**. A theme injects a persona only via a validated `persona.md`

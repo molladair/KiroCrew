@@ -46,6 +46,7 @@ export function grantConsent(slug: string, token: string): void {
   // safeSetItem is quota-safe (reclaim+retry); consent grants are tiny but we
   // route through it for parity with every other localStorage write.
   safeSetItem(CONSENT_PREFIX + slug, token)
+  clearExperienceDecline(slug)
 }
 
 /** Remove any stored consent for `slug` (best-effort; never throws). */
@@ -82,4 +83,41 @@ export function hasConsent(slug: string, expectedToken: string): boolean {
 export function hasAnyConsent(slug: string): boolean {
   const stored = getStoredConsent(slug)
   return stored !== null && stored !== '' && stored !== LEGACY_TOKEN
+}
+
+/**
+ * localStorage key prefix for a per-slug "Keep colors only" answer.
+ *
+ * Declining keeps the pack's palette and turns off its persona, sounds and
+ * overlays. The answer is bound to the same token a grant would be (persona
+ * sha256 or sentinel), so a pack whose persona changes asks again. It is
+ * separate from the grant key on purpose: api/client/chat.ts transmits the raw
+ * grant, and a decline must never look like one on the wire.
+ */
+export const DECLINE_PREFIX = 'mc-theme-experience-declined-'
+
+/** Record that the user kept only the colors of `slug`, bound to `token`. */
+export function declineExperience(slug: string, token: string): void {
+  if (!slug) return
+  safeSetItem(DECLINE_PREFIX + slug, token)
+}
+
+/** Raw stored decline for `slug`, or null if none / storage unavailable. */
+export function getStoredDecline(slug: string): string | null {
+  if (!slug) return null
+  return safeGetItem(DECLINE_PREFIX + slug)
+}
+
+/**
+ * Forget a "Keep colors only" answer, so the next activation of `slug` asks
+ * again. Called when the user picks the theme in the picker, which is the way
+ * back to the experience after declining it.
+ */
+export function clearExperienceDecline(slug: string): void {
+  if (!slug || typeof localStorage === 'undefined') return
+  try {
+    localStorage.removeItem(DECLINE_PREFIX + slug)
+  } catch {
+    /* storage disabled / SecurityError — nothing to clean up */
+  }
 }
