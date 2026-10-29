@@ -19,7 +19,7 @@ from kiro_crew.dashboard.chat_utils import (
     slot_history_key,
     variant_from_row,
 )
-from kiro_crew.dashboard.kiro_readiness import reject_if_kiro_unverified
+from kiro_crew.dashboard.kiro_readiness import reject_if_kiro_unverified, turn_gate_target
 from kiro_crew.dashboard.relay_archive import relay_archive_refusal
 from kiro_crew.dashboard.slot_ownership import (
     checkpoint_slot_replaced,
@@ -109,7 +109,12 @@ async def api_chat_slot_regenerate(request: web.Request) -> web.Response:
     # Destructive: this truncates and PERSISTS history before the background
     # turn runs, so a failed turn cannot undo it. Unlike an ordinary send, the
     # readiness latch must be honored BEFORE the mutation.
-    blocked = await reject_if_kiro_unverified(request)
+    # The session the rerun's turn will run on names its harness; the slot is
+    # looked up again after the await, so this read only feeds the gate.
+    harness_turn, turn_session = turn_gate_target(request.app["state"], request.match_info["slot"])
+    blocked = await reject_if_kiro_unverified(
+        request, harness_turn=harness_turn, session_key=turn_session
+    )
     if blocked is not None:
         return blocked
     state: DashboardState = request.app["state"]
@@ -446,7 +451,12 @@ async def api_chat_slot_edit_resend(request: web.Request) -> web.Response:
     # Destructive: this truncates and PERSISTS history before the background
     # turn runs, so a failed turn cannot undo it. Unlike an ordinary send, the
     # readiness latch must be honored BEFORE the mutation.
-    blocked = await reject_if_kiro_unverified(request)
+    # The session the rerun's turn will run on names its harness; the slot is
+    # looked up again after the await, so this read only feeds the gate.
+    harness_turn, turn_session = turn_gate_target(request.app["state"], request.match_info["slot"])
+    blocked = await reject_if_kiro_unverified(
+        request, harness_turn=harness_turn, session_key=turn_session
+    )
     if blocked is not None:
         return blocked
     state: DashboardState = request.app["state"]
