@@ -268,10 +268,42 @@ describe('SessionStorageScreen (inventory)', () => {
     await userEvent.click(screen.getByRole('button', { name: /Move to Trash/ }))
 
     await waitFor(() => expect(screen.getByText(/could not be moved/)).toBeTruthy())
+    // One refusal is counted in the singular, and the refusal is an announced
+    // error notice rather than a plain box.
+    expect(screen.getByText('1 session could not be moved')).toBeTruthy()
+    expect(
+      screen.getAllByRole('alert').some(el => el.textContent?.includes('1 session could not be moved')),
+    ).toBe(true)
     // The refusal line carries the session's title and the reason…
     expect(screen.getByText(/Refactor the ACP adapter: .*in use/i)).toBeTruthy()
     // …and does not print the id.
     expect(screen.queryByText(/dashboard_chat-70:/)).toBeNull()
+  })
+
+  it('gives each refused session its own row inside the alert', async () => {
+    trashFn.mockResolvedValueOnce({
+      sessions: 0,
+      bytes: 0,
+      batch_id: '',
+      refused: [
+        { uid: 'dashboard_chat-70', reason: 'in_use' },
+        { uid: 'dashboard_chat-52', reason: 'too_fresh' },
+      ],
+    })
+
+    renderWithProviders(<SessionStorageScreen onBack={() => {}} />)
+    await waitFor(() => expect(screen.getByText('Refactor the ACP adapter')).toBeTruthy())
+    const checkboxes = screen.getAllByRole('checkbox')
+    await userEvent.click(checkboxes[0])
+    await userEvent.click(screen.getByRole('button', { name: /Move to Trash/ }))
+
+    await waitFor(() => expect(screen.getByText('2 sessions could not be moved')).toBeTruthy())
+    const alert = screen.getAllByRole('alert').find(el => el.textContent?.includes('2 sessions could not be moved'))
+    const rows = Array.from(alert?.querySelectorAll('li') ?? []).map(li => li.textContent)
+    expect(rows).toEqual([
+      expect.stringMatching(/^Refactor the ACP adapter: .*in use/i),
+      expect.stringMatching(/^Sydney property platform: /),
+    ])
   })
 
   /**

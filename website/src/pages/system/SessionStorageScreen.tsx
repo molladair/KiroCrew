@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, Info, Loader2, Search } from 'lucide-react'
 import { api } from '../../api/client'
 import Clickable from '../../components/Clickable'
+import ErrorNotice from '../../components/ErrorNotice'
 import SimpleSelect from '../../components/SimpleSelect'
 import { Btn, ContentSkeleton } from '../../components/ui'
 import { compareText, fmtBytes, fmtNumber, fmtRelative } from '../../i18n/format'
@@ -435,18 +436,23 @@ export default function SessionStorageScreen({ onBack }: { onBack: () => void })
             </div>
           )}
 
-          {/* Refused notice */}
+          {/* Refused notice: the server's per-session refusals of a move to
+              Trash. The hand-off is on: the refused sessions are untouched, the
+              selection is already cleared when this shows, and the one text
+              box is a search filter, not a draft. */}
           {refused.length > 0 && (
-            <div className="bg-bg-elevated border border-border rounded-md px-3 py-2 text-[12px]">
-              <div className="font-medium text-text-strong mb-1">
-                {i18nT('pages.sessionStorage.refused_heading', { count: fmtNumber(refused.length) })}
-              </div>
-              {refused.map(r => (
-                <div key={r.uid} className="text-muted">
-                  {labelFor(r.uid)}: {refusalReason(r.reason)}
-                </div>
-              ))}
-            </div>
+            <ErrorNotice
+              askAgent
+              testId="session-storage-refused"
+              message={i18nT('pages.sessionStorage.refused_heading', { count: refused.length, n: fmtNumber(refused.length) })}
+              footer={
+                <ul className="text-muted">
+                  {refused.map(r => (
+                    <li key={r.uid}>{labelFor(r.uid)}: {refusalReason(r.reason)}</li>
+                  ))}
+                </ul>
+              }
+            />
           )}
 
           {/* Session list */}
