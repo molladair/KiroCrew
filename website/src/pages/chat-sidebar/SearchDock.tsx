@@ -20,6 +20,7 @@ import { errMessage } from '../../utils/thunkError'
 import { Btn, IconButton } from '../../components/ui'
 import SimpleSelect from '../../components/SimpleSelect'
 import { isEmbeddedPane } from '../../lib/embedded'
+import { crewModeEnabled } from '../../lib/crewMode'
 import { SearchFilterBar, FilterMenuButton, FilterChip, FILTER_CHIP_ROW_CLS, FilterMenuLabel, FilterMenuContent } from '../../components/SearchFilterBar'
 import { FOLDER_SORT_MODES, folderHasCreatedStamp, type FolderSortMode } from '../../utils/folderTree'
 import { type RecentUnit, RECENT_WINDOW_PRESETS, formatRecentWindow } from '../recentWindow'
@@ -253,7 +254,8 @@ export function renderSearchDock(shell: SidebarScope): { field: React.ReactNode;
                   // (a row the server stamps `crew_mode_root`), and stays while the
                   // filter is on. With no such chat, on a gateway without Crew Mode
                   // included, the menu reads as it does today.
-                  if (filterDef.key === 'crew' && !active && slotCount === 0) return null
+                  // With the Crew Mode preview off the row is never offered.
+                  if (filterDef.key === 'crew' && (!crewModeEnabled() || (!active && slotCount === 0))) return null
                   const isRecent = filterDef.key === 'recent'
                   if (isRecent) {
                     // The window picker is a NESTED FLYOUT on a wide viewport and

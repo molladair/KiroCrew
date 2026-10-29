@@ -3,7 +3,7 @@ import { useId, useState, type RefObject, type Dispatch, type SetStateAction, ty
 import { OverlayPortal } from '../../../components/overlayRoot'
 import { Undo2 } from 'lucide-react'
 import { CrewModeComposerChip, CrewModeMarkSource } from '../../../components/crew/CrewModeMarks'
-import { CREW_STEER_MAX_CHARS, crewApprovalDecidableHere } from '../../../lib/crewMode'
+import { CREW_STEER_MAX_CHARS, crewApprovalDecidableHere, crewModeRoot } from '../../../lib/crewMode'
 import CrewApprovalCards from '../../../components/crew/CrewApprovalCards'
 import { CrewWorkerComposerGate } from '../../../components/crew/CrewWorkerComposerGate'
 import { useCrewRoot } from '../../../components/crew/useCrewRoot'
@@ -522,7 +522,7 @@ export default function ComposerDockView({
               <span role="status" className="sr-only" data-testid="memory-switch-status">{memorySwitching ? i18nT('components.welcomeView.switching_memory_mode') : ''}</span>
               {/* A Crew Mode conductor's workers' tool approvals, the one thing it
                   cannot answer, stacked above its composer. */}
-              {currentSlot?.crew_mode_root && activeSlot && <CrewApprovalCards root={activeSlot} />}
+              {crewModeRoot(currentSlot) && activeSlot && <CrewApprovalCards root={activeSlot} />}
               {/* A crew member's composer is the conductor's normal composer: no
                   frame, header or hint. What it does differs only in delivery: a
                   send is a person steer, and a running turn takes it as a steer. */}

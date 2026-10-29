@@ -9,6 +9,7 @@ import type { SessionFilterKey, Slot } from './types'
 import { safeSetItem } from '../../utils/safeStorage'
 import { readStoredHiddenFolders, HIDDEN_FOLDERS_LS_KEY, readStoredTagFilter, TAG_FILTER_LS_KEY, FOLDERS_SHELVED_LS_KEY, readStoredRecentWindow, RECENT_WINDOW_LS_KEY, UNREAD_HIDDEN_LS_KEY, RUNNING_HIDDEN_LS_KEY, PINNED_HIDDEN_LS_KEY, readStoredModelFilter, writeStoredModelFilter, type StoredModelFilter } from './persistence'
 import { useAppSelector } from '../../store'
+import { useCrewMode } from '../../hooks/usePreviewFlag'
 import { selectSidebarWorkflowActiveKeys, selectSidebarAutomationRunningKeys, selectSidebarStartedSubagentCounts, selectSidebarSubagentCounts, selectSidebarApprovalCounts } from '../../store/chatSlice'
 import { decomposeRecentWindow, type RecentUnit, clampRecentAmount, customRecentWindowMs, recentTickIntervalMs, isWithinRecentWindow } from '../recentWindow'
 import { normalizeRunSessionKey } from '../../apps/workflows/runModel'
@@ -110,8 +111,17 @@ function readStoredStatusFilters(): StatusFilterState {
 /** The status chips, folder hides, tag selection and shelved flag, each persisted. */
 export function useSessionFilterState() {
   const [statusFilters, setStatusFilters] = useState<StatusFilterState>(readStoredStatusFilters)
-  const activeFilters = statusFilters.active
-  const filtersPaused = statusFilters.paused
+  // With the Crew Mode preview off a stored Crew Mode filter is not on: it would
+  // narrow the list to roots that read as ordinary chats. The stored value stays,
+  // so turning the preview back on restores it.
+  const crewMode = useCrewMode()
+  const activeFilters = useMemo(() => {
+    if (crewMode || !statusFilters.active.has('crew')) return statusFilters.active
+    const rest = new Set(statusFilters.active)
+    rest.delete('crew')
+    return rest
+  }, [crewMode, statusFilters.active])
+  const filtersPaused = statusFilters.paused && activeFilters.size > 0
   // Which folders are excluded from the flat lane, chosen from the filter
   // menu's folder checkboxes. We persist the HIDDEN ids (not the visible ones)
   // so a folder created later defaults to visible instead of silently

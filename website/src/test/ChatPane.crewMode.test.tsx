@@ -51,6 +51,7 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 import ChatPane from '../components/ChatPane'
+import { crewModePreviewOn } from './crewModePreview'
 
 const permission = { role: 'permission', content: 'Shell', cls: '', meta: { approval_id: 'rid-1', tool_input: 'printf hi', request_id: 'rid-1' } }
 const row = (key: string, extra: Record<string, unknown> = {}) => ({
@@ -113,3 +114,6 @@ describe('ChatPane in Split View (Crew Mode)', () => {
     expect(within(cards).getByRole('button', { name: /Reject/ })).toBeInTheDocument()
   })
 })
+
+// Last, after the file's own hooks that clear localStorage: Crew Mode is a feature preview.
+crewModePreviewOn()

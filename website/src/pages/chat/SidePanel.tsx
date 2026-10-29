@@ -49,6 +49,7 @@ import { AddMenuItem, NEW_MENU_DESC_KEY, NEW_MENU_LABEL_KEY, newMenuSections, ty
 import { DraggableTabItem, TabChip } from './SidePanelTabChip'
 import { AppPanelTabBody, AppPanelTabsErrorNotice, McpAppTabBody, TabBody } from './SidePanelTabBodies'
 import { useSidePanelSize } from './useSidePanelSize'
+import { crewModeRoot, crewRootOf } from '../../lib/crewMode'
 
 // The panel's parts live in sibling owners that never import this module:
 // `SidePanelAddMenu.tsx` (the + menu's catalog and gates), `SidePanelTabChip.tsx`
@@ -315,7 +316,7 @@ export default function SidePanel({
   // until the next visit; the + menu brings it back at any time.
   const crewMode = useAppSelector(st => {
     const row = slot ? st.dashboard.slots.find(r => r.key === slot) : undefined
-    return !!(row?.crew_mode_root || row?.crew_root)
+    return crewModeRoot(row) || !!crewRootOf(row)
   })
   useEffect(() => { if (crewMode && slot) offerPanelView(slot, 'workers') }, [crewMode, slot])
   const menuSections = newMenuSections({ terminalEnabled, summaryEnabled: summaryEnabled && !summaryPinned, hiddenViews, crewMode })
