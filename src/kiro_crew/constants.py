@@ -68,6 +68,13 @@ KIROCREW_SANDBOX_TOOL_VALUE = "1"
 #: ACP tree to learn the env name.
 BUNDLED_KAS_DIR_ENV = "KIROCREW_BUNDLED_KAS_DIR"
 
+#: The desktop app's bundled kiro-cli directory, exported by the Electron shell
+#: when the build shipped the payload (``website/electron/gateway-env.js``,
+#: ``bundledKiroCliEnvironment``). ``kiro_cli`` resolves the binary there; it lives
+#: here for the same reason as :data:`BUNDLED_KAS_DIR_ENV`: ``sandbox`` seals the
+#: directory it names.
+BUNDLED_KIRO_DIR_ENV = "KIROCREW_BUNDLED_KIRO_DIR"
+
 # Canonical truthy set for boolean environment variables (KIROCREW_NO_JAIL,
 # KIROCREW_DEV_MODE, …).  Use ``env_flag_enabled`` rather than ``bool(os.environ
 # .get(...))`` — a bare bool() treats ``"0"``/``"false"`` as truthy, which for a

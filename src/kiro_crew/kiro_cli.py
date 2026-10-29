@@ -13,6 +13,7 @@ from pathlib import Path
 
 from kiro_crew import identity_stores, platform_compat
 from kiro_crew._sqlite_compat import sqlite3
+from kiro_crew.constants import BUNDLED_KIRO_DIR_ENV as _BUNDLED_KIRO_DIR_ENV
 from kiro_crew.env import augmented_path
 from kiro_crew.subprocess_utf8 import UTF8_TEXT
 
@@ -26,8 +27,9 @@ KIRO_CLI_NAME = "kiro-cli"
 #: a file in -- which is what lets :func:`pin_kiro_cli` trust it while it still
 #: refuses the inherited ``PATH``. A directory rather than a binary because the
 #: Electron side only stats the directory it staged; the name of the entry
-#: binary inside it lives on this side, in :func:`bundled_kiro_cli_entry`.
-BUNDLED_KIRO_DIR_ENV = "KIROCREW_BUNDLED_KIRO_DIR"
+#: binary inside it lives on this side, in :func:`bundled_kiro_cli_entry`. The
+#: name is defined in ``constants`` because ``sandbox`` also seals the directory.
+BUNDLED_KIRO_DIR_ENV = _BUNDLED_KIRO_DIR_ENV
 
 #: The executable the bundled directory is entered through: the chat binary,
 #: not the ``kiro-cli`` launcher. The launcher resolves ``kiro-cli-chat`` via
