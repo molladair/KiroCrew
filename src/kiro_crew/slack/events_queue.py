@@ -227,6 +227,32 @@ def _on_tracked_done(task: asyncio.Task[object]) -> None:
         logger.debug("Tracked slash task failed: %s", exc)
 
 
+#: Session keys whose queue drain was held because Slack had no published
+#: client (a reconnect between closing the old socket and publishing the new
+#: one). Keyed weakly by orchestrator, like ``_stops_in_flight``.
+_held_while_slack_down: weakref.WeakKeyDictionary[Any, set[str]] = weakref.WeakKeyDictionary()
+
+
+def hold_if_slack_down(orch: GatewayOrchestrator, session_key: str) -> bool:
+    """Hold *session_key*'s queue when no Slack client is published.
+
+    A drain dequeues before it dispatches, so dispatching into a cleared
+    ``orch.slack`` would lose the entry: the turn fails at its first post and
+    nothing retries it. Returns True (the entry stays queued) while Slack is
+    down; :func:`resume_held_slack_drains` starts the held keys again.
+    """
+    if orch.slack is not None:
+        return False
+    _held_while_slack_down.setdefault(orch, set()).add(session_key)
+    return True
+
+
+def resume_held_slack_drains(orch: GatewayOrchestrator) -> None:
+    """Start every queue drain held while Slack was down. Call with a client published."""
+    for session_key in sorted(_held_while_slack_down.pop(orch, set())):
+        _spawn_tracked(_drain_slack_queue(orch, session_key), owner=orch)
+
+
 async def _drain_slack_queue(orch: GatewayOrchestrator, session_key: str) -> None:
     """Start the next queued message when no turn's own tail will drain it.
 
@@ -240,6 +266,8 @@ async def _drain_slack_queue(orch: GatewayOrchestrator, session_key: str) -> Non
     session_key = legacy_key(session_key) or session_key
     if _key_busy(orch, session_key) or not orch.sessions:
         return
+    if hold_if_slack_down(orch, session_key):
+        return
     _next = orch.sessions.dequeue(session_key)
     if not _next:
         # The pre-session stash, as the turn-end drains read it.
@@ -249,7 +277,9 @@ async def _drain_slack_queue(orch: GatewayOrchestrator, session_key: str) -> Non
         _next = _pq.pop(0)
         if not _pq:
             del orch._pending_queue[session_key]
-    task = asyncio.ensure_future(_dispatch_queued(orch, session_key, *_next))
+    # The client is read in the same step as the dequeue, so a reconnect that
+    # clears ``orch.slack`` later cannot leave the entry with no client.
+    task = asyncio.ensure_future(_dispatch_queued(orch, session_key, *_next, slack=orch.slack))
     orch._session_tasks[session_key] = task
     orch._handler_tasks.add(task)
 
@@ -285,8 +315,16 @@ async def _dispatch_queued(
     msg_ts: str,
     text: str,
     kwargs: dict,
+    *,
+    slack: Any = None,
 ) -> None:
-    """Dispatch a queued message — remove ⏳ reaction and call handle_message."""
+    """Dispatch a queued message — remove ⏳ reaction and call handle_message.
+
+    *slack* is the client the drain read when it dequeued the entry; the turn
+    uses it throughout, so a reconnect clearing ``orch.slack`` mid-dispatch
+    cannot hand the turn a ``None`` client. Omitted, ``orch.slack`` is read once.
+    """
+    client = slack if slack is not None else orch.slack
     channel = kwargs.get("channel", "")
     thread_ts = kwargs.get("thread_ts")
     from_trusted_bot = bool(kwargs.get("from_trusted_bot", False))
@@ -296,9 +334,9 @@ async def _dispatch_queued(
     if not isinstance(_q_spool_text, str):
         _q_spool_text = None
     _q_spool_attachments = int(kwargs.get("spool_attachments") or 0)
-    if orch.slack:
+    if client:
         try:
-            await orch.slack.remove_reaction(channel, msg_ts, "hourglass_flowing_sand")
+            await client.remove_reaction(channel, msg_ts, "hourglass_flowing_sand")
         except Exception:
             pass
     # Route the queued follow-up through the SAME gate as the initial message so
@@ -314,7 +352,7 @@ async def _dispatch_queued(
     try:
         if _use_transport:
             await handle_message_transport(
-                orch.slack,  # type: ignore[arg-type]
+                client,
                 orch.sessions,  # type: ignore[arg-type]
                 channel,
                 text,
@@ -350,7 +388,7 @@ async def _dispatch_queued(
             )
             return
         await handle_message(
-            orch.slack,  # type: ignore[arg-type]
+            client,
             orch.sessions,  # type: ignore[arg-type]
             channel,
             text,

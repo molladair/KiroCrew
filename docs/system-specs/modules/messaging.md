@@ -3653,15 +3653,18 @@ dashboard token auth.
   Answers `{connected, connect_error}`; the declines are `tokens_missing`,
   `owner_id_missing`, `enterprise_validation_failed`, `denied_by_policy` and
   `workspace_switch_needs_restart`, Slack API codes (`invalid_auth`) pass
-  through. A reconnect never switches workspaces: whenever boot had a bot
-  token it pins that token's `auth.test` team (boot publishes the Web API
-  client whether or not the socket connects; a token Slack rejects as
+  through. A reconnect never switches workspaces: whenever boot published a
+  Web API client it pins that client's `auth.test` team (boot publishes it
+  whether or not the socket connects; a boot with a bot token but no app
+  token publishes none and pins nothing; a token Slack rejects as
   `invalid_auth` and similar releases the pin), a connected reconnect pins its
   own, and a saved bot token for another team (or a pinned team that could
   not be confirmed) leaves
   Slack off until a restart, because queued and in-flight work names the
-  former workspace's channels. Concurrent callers share one attempt; a
-  caller that goes away does not cancel it. 503
+  former workspace's channels. While the socket is down the Slack queue
+  drains keep their entries queued rather than dispatch them into the
+  cleared client, and a connected reconnect starts them again. Concurrent
+  callers share one attempt; a caller that goes away does not cancel it. 503
   `slack_reconnect_unavailable` on a server with no socket owner, and until
   boot's own `init_socket_mode` + `_connect_slack` have returned (the gateway
   publishes `DashboardState.slack_reconnect` only then, so a reconnect never

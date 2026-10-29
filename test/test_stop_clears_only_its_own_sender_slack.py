@@ -248,7 +248,9 @@ class _Dispatches:
         self.pending_after = [item[0] for item in orch._pending_queue.get(_THREAD, ())]
         self.files_after = {path.name: path.exists() for path in paths}
 
-    async def __call__(self, _orch: Any, key: str, ts: str, text: str, kwargs: dict) -> None:
+    async def __call__(
+        self, _orch: Any, key: str, ts: str, text: str, kwargs: dict, **_kw: Any
+    ) -> None:
         self.calls.append((key, ts, text, kwargs))
         # flake-ok: the held dispatch never finishes by design; asyncio.run cancels it at teardown, moved verbatim
         await self._never.wait()
@@ -764,7 +766,7 @@ def _press(handler: str, mgr: Any) -> tuple[list[str], list[int]]:
     dispatched: list[str] = []
     seen_mid_stop: list[int] = []
 
-    async def _dispatch(_orch: Any, key: str, ts: str, text: str, kwargs: dict) -> None:
+    async def _dispatch(_orch: Any, key: str, ts: str, text: str, kwargs: dict, **_kw: Any) -> None:
         dispatched.append(ts)
 
     async def _turn_ends_during_cancel(**_kw: Any) -> str:

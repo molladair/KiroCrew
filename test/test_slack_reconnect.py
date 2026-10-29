@@ -64,6 +64,7 @@ class _Orch:
         self._slack_reconnect_task = None
         self._tracking_channels: set[str] = set()
         self._background_tasks: set[asyncio.Task] = set()
+        self._handler_tasks: set[asyncio.Task] = set()
         self.connect_ok = connect_ok
         self.connect_calls = 0
         self.connect_saw_slack: list[Any] = []
@@ -484,6 +485,186 @@ def test_a_failed_boot_socket_still_pins_the_published_workspace(seams) -> None:
 
     assert result["connect_error"] == rc.WORKSPACE_SWITCH_NEEDS_RESTART
     assert seams.init_calls == []
+
+
+def test_a_boot_that_published_no_client_pins_nothing(seams) -> None:
+    # A leftover bot token without its app token: boot built no Web API
+    # client, so no work can be bound to that workspace and the reconnect
+    # adopts the workspace the user saves.
+    orch = _Orch()
+    orch.slack = None
+    orch.dashboard_state.slack_client = None
+    orch._slack_workspace_pinned = False
+    orch._slack_team_id = ""
+
+    assert rc.pin_boot_workspace(orch) is None  # type: ignore[arg-type]
+    assert orch._slack_workspace_pinned is False
+
+    seams.team = "T0CONFIGURED"
+    result = _run(orch)
+    assert result == {"connected": True, "connect_error": ""}
+    assert orch._slack_team_id == "T0CONFIGURED"
+
+
+def test_a_boot_that_published_a_client_pins_its_workspace(seams) -> None:
+    seams.team = "T0BOOT"
+    orch = _Orch()
+    orch._slack_workspace_pinned = False
+    orch._slack_team_id = ""
+
+    async def _go() -> None:
+        task = rc.pin_boot_workspace(orch)  # type: ignore[arg-type]
+        assert task is not None
+        assert orch._slack_workspace_pinned is True
+        await task
+
+    asyncio.run(_go())
+    assert orch._slack_team_id == "T0BOOT"
+
+
+def test_a_client_published_only_to_the_dashboard_still_pins(seams) -> None:
+    # Boot published the client to the dashboard, then init_socket_mode
+    # cleared orch.slack alone (an enterprise or owner check failed); the
+    # dashboard senders still post through that client.
+    seams.team = "T0BOOT"
+    orch = _Orch()
+    orch.slack = None
+    orch.dashboard_state.slack_client = "client:boot"
+    orch._slack_workspace_pinned = False
+    orch._slack_team_id = ""
+
+    async def _go() -> None:
+        task = rc.pin_boot_workspace(orch)  # type: ignore[arg-type]
+        assert task is not None
+        await task
+
+    asyncio.run(_go())
+    assert orch._slack_workspace_pinned is True
+    assert orch._slack_team_id == "T0BOOT"
+    seams.team = "T0OTHER"
+    assert _run(orch)["connect_error"] == rc.WORKSPACE_SWITCH_NEEDS_RESTART
+
+
+# ── queued messages while the socket is down ────────────────────────────────
+
+
+class _QueueOrch:
+    """The attributes ``_drain_slack_queue`` touches."""
+
+    def __init__(self) -> None:
+        self.slack: Any = None
+        self.sessions = _Queue()
+        self._session_tasks: dict[str, Any] = {}
+        self._pending_queue: dict[str, list[Any]] = {}
+        self._handler_tasks: set[asyncio.Task] = set()
+
+
+class _Queue:
+    def __init__(self) -> None:
+        self.entries: list[tuple[str, str, dict]] = [("1.0", "ping", {})]
+
+    def dequeue(self, key: str) -> tuple[str, str, dict] | None:
+        return self.entries.pop(0) if self.entries else None
+
+
+async def _settle_handlers(orch: Any) -> None:
+    while orch._handler_tasks:
+        await asyncio.gather(*list(orch._handler_tasks))
+
+
+def test_a_drain_while_slack_is_down_keeps_the_entry_and_resumes_it(monkeypatch) -> None:
+    from kiro_crew.slack import events_queue as eq
+
+    dispatched: list[tuple[str, str, Any]] = []
+
+    async def _dispatch(
+        orch: Any, key: str, ts: str, text: str, kw: dict, *, slack: Any = None
+    ) -> None:
+        dispatched.append((key, ts, slack))
+
+    monkeypatch.setattr(eq, "_dispatch_queued", _dispatch)
+    orch = _QueueOrch()
+
+    async def _go() -> None:
+        await eq._drain_slack_queue(orch, "1.0")  # type: ignore[arg-type]
+        # Not dequeued: dispatching into the cleared client would lose it.
+        assert orch.sessions.entries == [("1.0", "ping", {})]
+        assert dispatched == []
+        orch.slack = "client:new"
+        eq.resume_held_slack_drains(orch)  # type: ignore[arg-type]
+        await _settle_handlers(orch)
+
+    asyncio.run(_go())
+    assert dispatched == [("1.0", "1.0", "client:new")]
+    assert orch.sessions.entries == []
+
+
+def test_a_connected_reconnect_resumes_the_held_drains(seams, monkeypatch) -> None:
+    from kiro_crew.slack import events_queue as eq
+
+    drained: list[tuple[str, Any]] = []
+
+    async def _drain(orch: Any, key: str) -> None:
+        drained.append((key, orch.slack))
+
+    monkeypatch.setattr(eq, "_drain_slack_queue", _drain)
+    orch = _Orch()
+    eq._held_while_slack_down[orch] = {"9.0"}
+
+    async def _go() -> None:
+        await rc.reconnect_slack(orch)  # type: ignore[arg-type]
+        await _settle_handlers(orch)
+
+    asyncio.run(_go())
+    assert drained == [("9.0", "client:xoxb-placeholder")]
+    assert orch not in eq._held_while_slack_down
+
+
+def test_a_failed_reconnect_keeps_the_drains_held(seams, monkeypatch) -> None:
+    from kiro_crew.slack import events_queue as eq
+
+    drained: list[str] = []
+
+    async def _drain(orch: Any, key: str) -> None:
+        drained.append(key)
+
+    monkeypatch.setattr(eq, "_drain_slack_queue", _drain)
+    orch = _Orch(connect_ok=False)
+    eq._held_while_slack_down[orch] = {"9.0"}
+
+    _run(orch)
+    assert drained == []
+    assert eq._held_while_slack_down[orch] == {"9.0"}
+
+
+def test_a_dispatch_keeps_the_client_its_drain_read(monkeypatch) -> None:
+    # A reconnect that clears orch.slack while the dispatch awaits the
+    # reaction removal must not hand the turn a None client.
+    from kiro_crew.slack import events_queue as eq
+
+    seen: list[Any] = []
+
+    async def _handle(client: Any, *args: Any, **kwargs: Any) -> None:
+        seen.append(client)
+
+    cfg = SimpleNamespace(
+        channel_config=lambda channel: SimpleNamespace(activation="always"),
+        messaging=SimpleNamespace(use_transport=False),
+    )
+    monkeypatch.setattr(eq, "handle_message", _handle)
+    monkeypatch.setattr(eq, "slack_cfg", lambda orch: cfg)
+    monkeypatch.setattr(eq, "_resolve_approval_mode", lambda orch: "auto")
+    orch = MagicMock()
+    client = MagicMock()
+
+    async def _remove_reaction(*args: Any) -> None:
+        orch.slack = None
+
+    client.remove_reaction = _remove_reaction
+    orch.slack = client
+
+    asyncio.run(eq._dispatch_queued(orch, "1.0", "1.0", "ping", {"channel": "C1"}, slack=client))
+    assert seen == [client]
 
 
 # ── the route ────────────────────────────────────────────────────────────────

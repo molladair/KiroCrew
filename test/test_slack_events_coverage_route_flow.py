@@ -371,7 +371,9 @@ class TestRouteMessageTransportPath:
                         await _drain(orch)
                         await _drain(orch)
         transport.assert_awaited_once()
-        dispatch.assert_awaited_once_with(orch, "100.0", "101.0", "next up", {"channel": "C1"})
+        dispatch.assert_awaited_once_with(
+            orch, "100.0", "101.0", "next up", {"channel": "C1"}, slack=orch.slack
+        )
         assert orch._session_tasks == {}
 
     @pytest.mark.asyncio
@@ -418,7 +420,9 @@ class TestRouteMessageNativeDrain:
                     await ev._route_message(orch, _event(), ev.SeenCache())
                     await _drain(orch)
                     await _drain(orch)
-        dispatch.assert_awaited_once_with(orch, "100.0", "101.0", "next up", {"channel": "C1"})
+        dispatch.assert_awaited_once_with(
+            orch, "100.0", "101.0", "next up", {"channel": "C1"}, slack=orch.slack
+        )
         assert queued == []
 
     @pytest.mark.asyncio

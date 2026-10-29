@@ -1373,7 +1373,11 @@ async def _route_message(
             # Mirrors native _on_done so messages queued while this session was
             # busy aren't stranded when the transport path is the active route.
             try:
-                if not _key_busy(orch, session_key) and orch.sessions:
+                if (
+                    not _key_busy(orch, session_key)
+                    and orch.sessions
+                    and not hold_if_slack_down(orch, session_key)
+                ):
                     _next = orch.sessions.dequeue(session_key)
                     # Fall back to orchestrator-level pending queue (pre-session).
                     if not _next:
@@ -1385,7 +1389,9 @@ async def _route_message(
                     if _next:
                         _q_ts, _q_text, _q_kw = _next
                         _q_t = asyncio.ensure_future(
-                            _dispatch_queued(orch, session_key, _q_ts, _q_text, _q_kw)
+                            _dispatch_queued(
+                                orch, session_key, _q_ts, _q_text, _q_kw, slack=orch.slack
+                            )
                         )
                         orch._session_tasks[session_key] = _q_t
                         orch._handler_tasks.add(_q_t)
@@ -1439,7 +1445,11 @@ async def _route_message(
         _cleanup_attachment_temps()
         # Drain queue: only if no other task took over this session
         try:
-            if not _key_busy(orch, session_key) and orch.sessions:
+            if (
+                not _key_busy(orch, session_key)
+                and orch.sessions
+                and not hold_if_slack_down(orch, session_key)
+            ):
                 _next = orch.sessions.dequeue(session_key)
                 # Fall back to orchestrator-level pending queue (pre-session messages)
                 if not _next:
@@ -1451,7 +1461,7 @@ async def _route_message(
                 if _next:
                     _q_ts, _q_text, _q_kw = _next
                     _q_t = asyncio.ensure_future(
-                        _dispatch_queued(orch, session_key, _q_ts, _q_text, _q_kw)
+                        _dispatch_queued(orch, session_key, _q_ts, _q_text, _q_kw, slack=orch.slack)
                     )
                     orch._session_tasks[session_key] = _q_t
                     orch._handler_tasks.add(_q_t)
@@ -1492,6 +1502,7 @@ from kiro_crew.slack.events_queue import _resolve_approval_mode  # noqa: E402
 from kiro_crew.slack.events_queue import _settle_stop_hold  # noqa: E402
 from kiro_crew.slack.events_queue import _StopHold  # noqa: E402
 from kiro_crew.slack.events_queue import _stops_in_flight  # noqa: E402
+from kiro_crew.slack.events_queue import hold_if_slack_down  # noqa: E402
 from kiro_crew.slack.events_slash import _handle_restart  # noqa: E402
 from kiro_crew.slack.events_slash import _handle_slash  # noqa: E402
 from kiro_crew.slack.events_slash import _safe_log  # noqa: E402
@@ -1525,8 +1536,10 @@ if TYPE_CHECKING:  # every owner-defined name in _EXPORTS, for type checkers and
     from kiro_crew.slack.events_block_text import _table_row_fragments  # noqa: F401
     from kiro_crew.slack.events_block_text import _until_full  # noqa: F401
     from kiro_crew.slack.events_queue import _bg_tasks  # noqa: F401
+    from kiro_crew.slack.events_queue import _held_while_slack_down  # noqa: F401
     from kiro_crew.slack.events_queue import _on_tracked_done  # noqa: F401
     from kiro_crew.slack.events_queue import _spawn_tracked  # noqa: F401
+    from kiro_crew.slack.events_queue import resume_held_slack_drains  # noqa: F401
     from kiro_crew.slack.events_queue import slack_stop_in_flight  # noqa: F401
     from kiro_crew.slack.events_slash import SLASH_REGISTRY  # noqa: F401
     from kiro_crew.slack.events_slash import SlashHandler  # noqa: F401

@@ -25,10 +25,16 @@ current workspace (queued turns, in-flight replies, persisted thread links)
 names that workspace's channels; a restart drops the in-process part of it, a
 reconnect would not. That work can exist as soon as a Slack Web API client
 is published, which boot does before the socket connects. So once a bot
-token's workspace is pinned (at boot whenever a bot token was present, or by
-a connected reconnect), a saved bot token for a different workspace -- or a
-pinned workspace that could not be confirmed -- keeps Slack off with
-``workspace_switch_needs_restart``.
+token's workspace is pinned (at boot whenever boot published a Web API
+client, or by a connected reconnect), a saved bot token for a different
+workspace -- or a pinned workspace that could not be confirmed -- keeps Slack
+off with ``workspace_switch_needs_restart``. A boot that published no client
+(a leftover bot token without its app token) pins nothing: no work can be
+bound to a workspace no client was ever built for.
+
+While the socket is down, the Slack queue drains hold their entries instead
+of dispatching them into the cleared client (see
+``events_queue.hold_if_slack_down``); a connected reconnect starts them again.
 
 Concurrent callers share one attempt, so a double click never races two
 handshakes, and a caller that goes away does not cancel the attempt.
@@ -110,11 +116,34 @@ _UNAUTHENTICATED = frozenset(
 )
 
 
+def pin_boot_workspace(orch: GatewayOrchestrator) -> asyncio.Task[None] | None:
+    """Pin the workspace of the Web API client boot published, if it published one.
+
+    Boot publishes ``orch.slack`` before (and whether or not) the socket
+    connects, so work can bind to its workspace either way. A boot that built
+    no client (``orch.slack is None``: a bot token without its app token, say)
+    pins nothing, so a later reconnect may adopt the workspace the user saves.
+    Returns the probe task that names the pinned workspace, or ``None``.
+    The dashboard's copy counts too: boot publishes ``dashboard_state.slack_client``
+    before ``init_socket_mode``, which can clear ``orch.slack`` alone (an
+    enterprise or owner check that fails), and dashboard senders keep posting
+    through that copy.
+    """
+    state = orch.dashboard_state
+    published = orch.slack is not None or (
+        state is not None and getattr(state, "slack_client", None) is not None
+    )
+    if not published:
+        return None
+    orch._slack_workspace_pinned = True
+    return asyncio.create_task(record_connected_workspace(orch))
+
+
 async def record_connected_workspace(orch: GatewayOrchestrator) -> None:
     """Name the workspace boot's Slack clients belong to (best effort).
 
-    Run at boot whenever a bot token was present, with
-    ``_slack_workspace_pinned`` already set: boot publishes that token's Web
+    Run at boot by ``pin_boot_workspace``, with ``_slack_workspace_pinned``
+    already set: boot publishes that token's Web
     API client whether or not the socket connects. Slack proving the token
     belongs to no workspace releases the pin. Any other failure leaves the
     workspace unconfirmed, and a later reconnect refuses to guess and asks for
@@ -262,6 +291,7 @@ async def _reconnect(orch: GatewayOrchestrator) -> dict[str, Any]:
 async def _bring_up(orch: GatewayOrchestrator) -> dict[str, Any]:
     from kiro_crew.slack.client import RealSlackClient
     from kiro_crew.slack.events import SeenCache, init_socket_mode
+    from kiro_crew.slack.events_queue import resume_held_slack_drains
     from kiro_crew.slack.scope_probe import log_probe_failure, warn_unreadable_tracked_channels
 
     if not orch._slack_enabled:
@@ -307,6 +337,9 @@ async def _bring_up(orch: GatewayOrchestrator) -> dict[str, Any]:
     orch._slack_team_id = team_id
     result = _record(orch, True, "")
     logger.info("Slack reconnected in place (workspace %s)", team_id)
+    # Queue drains that ran while the socket was down held their entries;
+    # start them now that a client is published again.
+    resume_held_slack_drains(orch)
     if orch.slack is not None and orch._tracking_channels:
         # The same tracked-channel readability probe boot runs after connecting.
         probe = asyncio.create_task(
