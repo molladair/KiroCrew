@@ -53,17 +53,19 @@ let micOwner: string | null = null
  *  holds the mic (a lone DM thread shows nothing else that is capturing). */
 let micOwnerSession: string | null = null
 const micSubs = new Set<() => void>()
-function setMicOwner(next: string | null, session: string | null = null): void {
+/** Exported so a non-composer mic (the comment boxes' dictation button) takes
+ *  the same one-at-a-time lock instead of capturing beside a composer. */
+export function setMicOwner(next: string | null, session: string | null = null): void {
   if (micOwner === next && micOwnerSession === session) return
   micOwner = next
   micOwnerSession = next === null ? null : session
   for (const fn of micSubs) fn()
 }
-function subscribeMic(fn: () => void): () => void {
+export function subscribeMic(fn: () => void): () => void {
   micSubs.add(fn)
   return () => { micSubs.delete(fn) }
 }
-const readMicOwner = () => micOwner
+export const readMicOwner = () => micOwner
 const readMicOwnerSession = () => micOwnerSession
 /** Test seam. */
 export function _resetMicOwner(): void { setMicOwner(null) }

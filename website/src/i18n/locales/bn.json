@@ -6720,6 +6720,12 @@
       "reply": "উত্তর দিন…",
       "reply_2": "উত্তর"
     },
+    "commentVoiceButton": {
+      "dictate_comment": "মন্তব্য বলে লিখুন",
+      "mic_in_use": "মাইক অন্য কোথাও চলছে",
+      "stop_dictation": "বলে লেখা বন্ধ করুন",
+      "transcribing": "লেখা হচ্ছে…"
+    },
     "commentThreads": {
       "add_to_chat": "চ্যাটে যোগ করুন",
       "cancel": "বাতিল করো",

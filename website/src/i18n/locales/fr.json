@@ -6836,6 +6836,12 @@
       "reply": "Répondre…",
       "reply_2": "Répondre"
     },
+    "commentVoiceButton": {
+      "dictate_comment": "Dicter le commentaire",
+      "mic_in_use": "Micro utilisé ailleurs",
+      "stop_dictation": "Arrêter la dictée",
+      "transcribing": "Transcription…"
+    },
     "commentThreads": {
       "add_to_chat": "Ajouter à la conversation",
       "cancel": "Annuler",

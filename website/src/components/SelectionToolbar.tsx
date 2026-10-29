@@ -9,6 +9,7 @@ import { codePassagePosition, plainCodeFenceAtRangeStart, shadowSelectionRange }
 import { useImeGuard } from '../hooks/useImeGuard'
 import { measureAutoGrowTextarea } from '../hooks/useAutoGrowTextarea'
 import ErrorNotice from './ErrorNotice'
+import { CommentVoiceButton, appendDictation } from './CommentVoiceButton'
 import { i18nT } from '../i18n/t'
 import { isEditableTarget } from '../utils/editableTarget'
 
@@ -1476,6 +1477,9 @@ export function ComposerBox({ inputRef, autoFocus, actions, copiedId, hintIdBase
     onGrow()
   }, [onGrow])
 
+  // Read when a transcript lands, which can be renders after the press.
+  const textRef = useRef(text)
+  textRef.current = text
   const canSubmit = text.trim().length > 0 && !submitting
   // The button names the state while the host has the post in flight: a
   // spinner alone reads as "could be loading"; "Saving…" says wait, not retry.
@@ -1503,6 +1507,14 @@ export function ComposerBox({ inputRef, autoFocus, actions, copiedId, hintIdBase
           has the post in flight, so a slow network reads as saving, not as a
           frozen box. */}
         {submitting ? <Loader2 size={13} className="animate-spin" data-testid="composer-submitting" /> : <MessageSquarePlus size={13} />}{submitLabel}</button>
+      {/* Dictation ADDS to the draft; the person still reads it and adds it. */}
+      <CommentVoiceButton
+        disabled={submitting}
+        onText={t => {
+          onTextChange(appendDictation(textRef.current, t))
+          requestAnimationFrame(() => { const el = inputRef.current; if (el) { autoGrow(el); el.focus() } })
+        }}
+      />
       <div
         role="group"
         aria-label={i18nT('components.selectionToolbar.more_actions')}

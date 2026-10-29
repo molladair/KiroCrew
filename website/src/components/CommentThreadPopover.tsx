@@ -5,6 +5,7 @@ import { CommentDraftReportProvider, CommentRow } from './CommentsSidebar'
 import { useImeGuard } from '../hooks/useImeGuard'
 import { useAutoGrowTextarea } from '../hooks/useAutoGrowTextarea'
 import { codeAnchorElement, onCodeAnchorsChange } from './codeComments'
+import { CommentVoiceButton, appendDictation } from './CommentVoiceButton'
 
 import { i18nT } from '../i18n/t'
 /**
@@ -232,7 +233,10 @@ export function CommentThreadPopover({
             }}
             className="w-full bg-bg-elevated border border-border rounded-md px-2 py-1.5 text-text text-[13px] font-body outline-hidden resize-none focus-ring leading-[18px]"
           />
-          <div className="flex justify-end mt-1">
+          <div className="flex items-center justify-end gap-1 mt-1">
+            <CommentVoiceButton
+              onText={t => { setReply(prev => appendDictation(prev, t)); composerRef.current?.focus() }}
+            />
             <button
               type="button"
               disabled={!reply.trim()}
