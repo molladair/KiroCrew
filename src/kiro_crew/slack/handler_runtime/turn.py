@@ -20,6 +20,7 @@ Composed onto :mod:`kiro_crew.slack.handler`; see
 from __future__ import annotations
 
 import asyncio
+import contextvars
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -577,6 +578,9 @@ async def _run_turn(turn: _SlackTurn) -> bool:
             # there); a waiter admitted now finds an idle session.
             sessions.close_replay_gap(session_key)
 
+    from kiro_crew.image_refs import PROMPT_USER_TEXT
+
+    _user_text_token: contextvars.Token[str | None] | None = None
     try:
         task.start()
         while True:
@@ -861,6 +865,11 @@ async def _run_turn(turn: _SlackTurn) -> bool:
             await turn.clear_working_indicators()
             return False
 
+        # The person's own text, so the prompt builder judges literal text
+        # (code a path is written in) over it alone and not over the cancelled
+        # turn's preamble or the context composed in front of it.
+        if _user_text_token is None:
+            _user_text_token = PROMPT_USER_TEXT.set(_user_text)
         async for event in client.stream(full_message):
             if event.kind == EVENT_TEXT_CHUNK:
                 await answer.on_text(event)
@@ -1216,6 +1225,8 @@ async def _run_turn(turn: _SlackTurn) -> bool:
         await sessions.record_failure(session_key)
         Stats().inc_message_failed()
     finally:
+        if _user_text_token is not None:
+            PROMPT_USER_TEXT.reset(_user_text_token)
         # A turn that consumed the post-compaction flag but never landed (an
         # error arm, a cancel) discarded the prompt carrying the re-injected
         # context, and a backend that compacted the session during the turn

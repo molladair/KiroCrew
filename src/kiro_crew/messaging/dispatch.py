@@ -1070,7 +1070,16 @@ class ChannelTurns:
                         return self._outcome(verdict, monitor, acquired=True)
                     # The replay's own completion supersedes the one the guard held.
                     retry_guard.drop_held()
-                accumulated = await driver.run(full_message)
+                from kiro_crew.image_refs import PROMPT_USER_TEXT
+
+                # The person's own text, so the prompt builder judges literal
+                # text (code a path is written in) over it alone and not over
+                # the history and context composed around it.
+                _user_text_token = PROMPT_USER_TEXT.set(prompt)
+                try:
+                    accumulated = await driver.run(full_message)
+                finally:
+                    PROMPT_USER_TEXT.reset(_user_text_token)
 
                 # Defensive lookup, like every other attribute read on this seam: a
                 # driver stand-in may predate this field. A missing reason means "no

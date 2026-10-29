@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import difflib  # noqa: F401
 import functools  # noqa: F401
 import hashlib
@@ -357,6 +358,7 @@ from kiro_crew.hooks import (  # noqa: F401
     validate_file_path,
 )
 from kiro_crew.image_artifacts import register_images_off_loop
+from kiro_crew.image_refs import PROMPT_USER_TEXT
 from kiro_crew.llm_helpers import (  # noqa: F401
     TRANSIENT_RETRIES,
     PromptBusyExhaustedError,
@@ -879,6 +881,7 @@ async def _run_chat(
     # to clear it, and a cut with no text after it leaves nothing to judge.
     _compaction_text_offset = 0
     turn._compaction_text_offset = _compaction_text_offset
+    _user_text_token: contextvars.Token[str | None] | None = None
     try:
         _flow = await _turn_admit(turn)
         if _flow is _Flow.END:
@@ -899,6 +902,10 @@ async def _run_chat(
         _todo_recovery_carried = turn._todo_recovery_carried
         _todo_sync_rendered = turn._todo_sync_rendered
         full_message = turn.full_message
+        # The person's own text in the prompt, so the prompt builder judges
+        # literal text (code a path is written in) over it alone and not over
+        # the preambles and context composed in front of it.
+        _user_text_token = PROMPT_USER_TEXT.set(turn._span_probe or turn._jev_route_text)
         event_stream = client.stream_command(message) if is_slash else client.stream(full_message)
         async for event in event_stream:
             if (_todo_sync_rendered or _todo_recovery_carried) and (
@@ -1171,6 +1178,8 @@ async def _run_chat(
     except Exception as exc:
         await _on_error(turn, exc)
     finally:
+        if _user_text_token is not None:
+            PROMPT_USER_TEXT.reset(_user_text_token)
         # An interrupted or unexecuted proposal must not survive into a turn
         # whose backend may reuse its call id. Executed walker work is separate.
         _local_turn_marker_generation = turn._local_turn_marker_generation

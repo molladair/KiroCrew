@@ -34,6 +34,7 @@ from kiro_crew.acp.prompt_blocks import (
     build_prompt_blocks,
     summarize_prompt_structure,
 )
+from kiro_crew.image_refs import PROMPT_USER_TEXT
 
 # Smallest valid 1x1 PNG.
 _PNG = base64.b64decode(
@@ -1734,3 +1735,151 @@ class TestRealLocalJunctionAncestor:
         _winapi.CreateJunction(str(target), str(junction))
         blocks = build_prompt_blocks(f"see {junction}")
         assert [b["type"] for b in blocks] == ["text"]
+
+
+class TestLiteralTextIsNotAReference:
+    """A path written as literal text is ABOUT a file, not an attachment.
+
+    Code, indented code and escaped ``\\![x](...)`` markup keep their text
+    byte-for-byte and attach nothing, even when the file is readable; a path in
+    prose next to them is still inlined. ``strip_image_refs`` reads the same
+    view (``mask_literal_spans``), so both sides agree per shape.
+    """
+
+    @pytest.mark.parametrize(
+        "shape",
+        [
+            "run `open {p}` to view it",
+            "how to:\n```\nopen {p}\n```\nthat is all",
+            "how to:\n\n    open {p}\n\nthat is all",
+            "how to:\n\topen {p}",
+            "write \\![shot]({d}) to embed it",
+        ],
+        ids=["inline-code", "fenced", "indented", "tab-indented", "escaped-markup"],
+    )
+    def test_the_text_is_kept_and_nothing_is_attached(self, tmp_path, shape):
+        p = _png(tmp_path)
+        text = shape.format(p=p, d=p.as_posix())
+
+        blocks = build_prompt_blocks(text)
+
+        assert blocks == [{"type": "text", "text": text}]
+
+    def test_a_prose_path_beside_literal_text_is_still_inlined(self, tmp_path):
+        p = _png(tmp_path)
+        q = _distinct_png(tmp_path, "other.png", 3)
+        text = f"docs say `open {p}`, and here it is:\n{q}"
+
+        blocks = build_prompt_blocks(text)
+
+        assert [b["type"] for b in blocks] == ["text", "image"]
+        assert blocks[0]["text"] == f"docs say `open {p}`, and here it is:\n[image: other.png]"
+
+    def test_a_dangling_fence_does_not_swallow_a_channel_attachment(self, tmp_path):
+        # A channel appends its attachment paths as bare lines after the user's
+        # text, so an opener the user never closed must not turn them into code.
+        p = _png(tmp_path)
+        text = f"see this:\n```python\nprint(1)\n{p}"
+
+        blocks = build_prompt_blocks(text)
+
+        assert [b["type"] for b in blocks] == ["text", "image"]
+        assert blocks[0]["text"].endswith(f"[image: {p.name}]")
+
+    def test_a_delimiter_in_an_attached_file_does_not_swallow_the_image(self, tmp_path):
+        # The user's open fence would otherwise close on the attached file's
+        # delimiter line, after the image path, and make the path code.
+        from kiro_crew.messaging.attachments import IngestResult, append_attachment_context
+
+        p = _png(tmp_path)
+        result = IngestResult(
+            image_paths=[str(p)],
+            text_blocks=["[File: notes.md]\n```\nx = 1\n```\n[End of file]"],
+        )
+        text = append_attachment_context("see this:\n```python\nprint(1)", result)
+
+        blocks = build_prompt_blocks(text)
+
+        assert [b["type"] for b in blocks] == ["text", "image"]
+        assert f"print(1)\n```\n[image: {p.name}]\n" in blocks[0]["text"]
+
+
+class TestLiteralTextIsJudgedOverThePersonsOwnText:
+    """The person's own slice of the prompt is judged apart from the text around it.
+
+    A surface composes text in front of the person's (a cancelled turn's
+    partial answer, an interrupted turn, a sub-agent failure note, replayed
+    history) and names the person's text in ``PROMPT_USER_TEXT``. A prefix that
+    ends inside a fence it never closes must not pair with the person's next
+    fence line and turn the picture between them into code.
+    """
+
+    _PREFIX = "Partial assistant response before cancel:\n```python\ndef f():"
+
+    @staticmethod
+    def _build(text, user_text):
+        previous = PROMPT_USER_TEXT.get()
+        PROMPT_USER_TEXT.set(user_text)
+        try:
+            return build_prompt_blocks(text)
+        finally:
+            PROMPT_USER_TEXT.set(previous)
+
+    def test_a_prefix_left_inside_an_open_fence_does_not_swallow_the_image(self, tmp_path):
+        p = _png(tmp_path)
+        user = f"this screenshot shows the error\n{p}\nand my code:\n```\nx = 1\n```"
+
+        alone = build_prompt_blocks(user)
+        composed = self._build(self._PREFIX + "\n\n" + user, user)
+
+        assert [b["type"] for b in alone] == ["text", "image"]
+        assert [b["type"] for b in composed] == ["text", "image"]
+        assert f"\n[image: {p.name}]\nand my code:" in composed[0]["text"]
+
+    def test_literal_text_in_the_persons_slice_still_attaches_nothing(self, tmp_path):
+        p = _png(tmp_path)
+        user = f"run `open {p}` to view it"
+        text = self._PREFIX + "\n\n" + user
+
+        blocks = self._build(text, user)
+
+        assert blocks == [{"type": "text", "text": text}]
+
+    def test_an_indented_first_line_after_a_blank_line_is_still_code(self, tmp_path):
+        p = _png(tmp_path)
+        user = f"    open {p}"
+        text = "note from a sub-agent\n\n" + user
+
+        blocks = self._build(text, user)
+
+        assert blocks == [{"type": "text", "text": text}]
+
+    def test_a_fence_closed_inside_the_prefix_is_still_literal(self, tmp_path):
+        # The text in front is judged on its own, so a replayed row's code
+        # stays code, as strip_image_refs keeps it.
+        p = _png(tmp_path)
+        user = "what does this show?"
+        text = f"earlier turn:\n```\n{p}\n```\n\n{user}"
+
+        blocks = self._build(text, user)
+
+        assert blocks == [{"type": "text", "text": text}]
+
+    def test_a_slice_the_prompt_does_not_hold_judges_the_whole_prompt(self, tmp_path):
+        p = _png(tmp_path)
+        text = f"run `open {p}` to view it"
+
+        blocks = self._build(text, "a request a hook rewrote")
+
+        assert blocks == [{"type": "text", "text": text}]
+
+    def test_the_persons_text_is_found_after_the_punctuation_fold(self, tmp_path):
+        # The builder folds an em dash to "--", so the text the surface named
+        # appears in the prompt only in its folded form.
+        p = _png(tmp_path)
+        user = f"this shows the error \u2014 see\n{p}\nand my code:\n```\nx = 1\n```"
+        text = self._PREFIX + "\n\n" + user.replace("\u2014", "--")
+
+        blocks = self._build(text, user)
+
+        assert [b["type"] for b in blocks] == ["text", "image"]
