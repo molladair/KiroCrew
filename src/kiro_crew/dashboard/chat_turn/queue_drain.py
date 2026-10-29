@@ -8,6 +8,7 @@ import inspect
 import json
 from typing import TYPE_CHECKING, Any
 
+from kiro_crew.dashboard import gateway_notice as gn
 from kiro_crew.dashboard.chat_delivery import TURN_ACTOR_META_KEY as _TURN_ACTOR_META_KEY
 from kiro_crew.dashboard.chat_delivery import (
     attachment_meta,
@@ -275,7 +276,12 @@ def _arm_parked_queue_drain(state: DashboardState, slot: _ChatSlot, *, notice: b
     noticed = parked.get(slot.key, False)
     parked[slot.key] = noticed or notice
     if notice and not noticed:
-        slot.append("notice", MEMORY_PREPARATION_PARKED_TEXT, "msg msg-info")
+        slot.append(
+            "notice",
+            MEMORY_PREPARATION_PARKED_TEXT,
+            "msg msg-info",
+            meta=gn.gateway_notice_meta(gn.GATEWAY_NOTICE_MEMORY_PREPARING),
+        )
         state.push_slots_update()
 
 
@@ -712,6 +718,7 @@ async def _start_next_queued_turn(
             "error",
             "⟳ Session reset — processing next message with conversation history",
             "msg msg-err",
+            meta=gn.gateway_notice_meta(gn.GATEWAY_NOTICE_SESSION_RESET_CONTINUING),
         )
         slot._stopping = False
 

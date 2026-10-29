@@ -320,7 +320,15 @@ export const CHUNK_BUDGETS = {
   // chunk that is already lazy, not a library to move behind an `import()`. The
   // ~5% convention over the measurement (517,094 B * 1.05 = 542,949 B), rounded
   // up to this table's whole-KB unit, leaves 26,650 B (5.15%) of headroom.
-  ModelEffortDropdown: 531 * KB, // measured 517,094 B on main @ 0dab198632 (~5% headroom)
+  // Re-measured 2026-10-29 with `vite build --mode analyze`: main alone builds
+  // the chunk at 539,395 B, and the gateway status-row notice table
+  // (pages/chat/gatewayNotice.ts: one token, copy and pre-token-wording table
+  // for every status row the chat gateway appends) adds 6,034 B, for 545,429 B.
+  // The transcript renderers resolve every row through that table synchronously,
+  // and its regexes must recognise rows already persisted in history, so it is
+  // first-party code with no lazy boundary to move behind. 545,429 B * 1.05 =
+  // 572,700 B, rounded up to the whole-KB unit.
+  ModelEffortDropdown: 560 * KB, // measured 545,429 B with the gateway notice table (~5% headroom)
 }
 
 const REPORT_PATH = path.resolve('dist', 'bundle-report.json')

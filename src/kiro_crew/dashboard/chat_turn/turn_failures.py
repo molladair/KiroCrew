@@ -15,6 +15,7 @@ import functools
 from typing import TYPE_CHECKING
 
 from kiro_crew.agent_capabilities import CapabilityError
+from kiro_crew.dashboard import gateway_notice as gn
 from kiro_crew.dashboard.chat_utils import TRANSIENT_RETRY_KIND
 from kiro_crew.security import redact
 from kiro_crew.session_capabilities import CapabilityStartupError
@@ -365,7 +366,10 @@ async def _on_acp_error_card(turn: _ChatTurn, exc) -> None:
             "messages are kept; the model rebuilds its working "
             "context from them)…",
             "msg msg-err",
-            meta={"kind": TRANSIENT_RETRY_KIND},
+            meta={
+                "kind": TRANSIENT_RETRY_KIND,
+                **gn.gateway_notice_meta(gn.GATEWAY_NOTICE_CONVERSATION_REJECTED_RESTARTING),
+            },
         )
         # The verbatim requeue carries the retry identity forward via
         # _queue_recovery itself (one mechanism for every recovery

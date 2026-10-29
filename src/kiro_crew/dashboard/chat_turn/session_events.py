@@ -8,6 +8,7 @@ import asyncio
 from typing import TYPE_CHECKING, Literal
 
 from kiro_crew.crew_mode import slot_is_crew_mode_root as crew_mode_is_root
+from kiro_crew.dashboard import gateway_notice as gn
 from kiro_crew.dashboard.chat_utils import (
     _broadcast_compaction_result,
     drained_to_thread,
@@ -270,6 +271,11 @@ async def _on_agent_switched(turn: _ChatTurn, event) -> Literal[_Flow.BREAK] | N
             f"📌 Agent switch to {new_agent} was blocked — this thread is "
             f"pinned to {pinned_member}. The next turn restarts on the pinned crew.",
             "msg msg-info",
+            meta=gn.gateway_notice_meta(
+                gn.GATEWAY_NOTICE_AGENT_SWITCH_BLOCKED_PINNED,
+                agent=str(new_agent),
+                member=str(pinned_member),
+            ),
         )
         needs_session_reset = True
         turn.needs_session_reset = needs_session_reset
@@ -318,6 +324,9 @@ async def _on_agent_switched(turn: _ChatTurn, event) -> Literal[_Flow.BREAK] | N
             "Crew Mode, which stays on its conductor. The next turn restarts "
             "on the conductor.",
             "msg msg-info",
+            meta=gn.gateway_notice_meta(
+                gn.GATEWAY_NOTICE_AGENT_SWITCH_BLOCKED_CREW_MODE, agent=str(new_agent)
+            ),
         )
         needs_session_reset = True
         turn.needs_session_reset = needs_session_reset

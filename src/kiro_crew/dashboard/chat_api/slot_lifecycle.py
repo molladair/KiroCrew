@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 
 from aiohttp import web
 
+from kiro_crew.dashboard import gateway_notice as gn
+
 if TYPE_CHECKING:
     from kiro_crew.dashboard.chat_handlers import (
         _FILE_CHANGES_DRAIN_SECS,
@@ -1574,6 +1576,7 @@ async def api_chat_slots_cleanup(request: web.Request) -> web.Response:
                     "cancelled. The tab was kept, but that turn did not finish "
                     "-- re-send to continue.",
                     "msg msg-err",
+                    meta=gn.gateway_notice_meta(gn.GATEWAY_NOTICE_ARCHIVE_FAILED_TURN_CANCELLED),
                 )
             failed.append(name)
             continue

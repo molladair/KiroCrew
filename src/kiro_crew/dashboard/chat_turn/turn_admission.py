@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from kiro_crew.config.loader import normalize_agent_model
 from kiro_crew.context import discard_memory_prefetch
+from kiro_crew.dashboard import gateway_notice as gn
 from kiro_crew.dashboard.chat_utils import (
     _KIRO_ONLY_BLOCKED_SLASH_COMMANDS,
     APP_AGENT_REFUSED_KIND,
@@ -236,6 +237,7 @@ async def _turn_admit(turn: _ChatTurn) -> _Flow | None:
             "error",
             "This thread's crew name cannot be dispatched. Rename or recreate the Crew Member.",
             "msg msg-err",
+            meta=gn.gateway_notice_meta(gn.GATEWAY_NOTICE_CREW_NAME_UNDISPATCHABLE),
         )
         return _Flow.END
 
@@ -470,6 +472,7 @@ async def _turn_admit(turn: _ChatTurn) -> _Flow | None:
             "error",
             "This thread's crew name cannot be dispatched. Rename or recreate the Crew Member.",
             "msg msg-err",
+            meta=gn.gateway_notice_meta(gn.GATEWAY_NOTICE_CREW_NAME_UNDISPATCHABLE),
         )
         return _Flow.END
     # A session a palette command opened to run as its app's OWN agent runs the

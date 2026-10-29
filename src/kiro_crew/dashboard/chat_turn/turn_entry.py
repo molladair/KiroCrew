@@ -12,6 +12,7 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any
 
+from kiro_crew.dashboard import gateway_notice as gn
 from kiro_crew.dashboard.poisoned_escalation import PoisonedConversationEscalation
 from kiro_crew.dashboard.state import SUBAGENT_SYNTHESIS_PROMPT, row_mid
 from kiro_crew.llm_helpers import _NO_PRIOR_STATS
@@ -214,6 +215,7 @@ async def _turn_open(turn: _ChatTurn) -> _Flow | None:
             "This chat ran on a remote crew and is read-only now. Open the "
             "crew's own session to keep going.",
             "msg msg-err",
+            meta=gn.gateway_notice_meta(gn.GATEWAY_NOTICE_REMOTE_CREW_READ_ONLY),
         )
         # The one exit with no tail: an archive's queue must never drain here.
         turn_exit.handed_off = True
