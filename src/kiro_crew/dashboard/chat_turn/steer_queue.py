@@ -27,6 +27,7 @@ from kiro_crew.dashboard.chat_utils import (
     is_system_injection_item,
 )
 from kiro_crew.dashboard.chat_utils_injected_rows import AUTOMATION_STEER_META
+from kiro_crew.dashboard.slot_queue_repository import RESTORED_QUEUE_KEY, RESTORED_SEND_CHOSEN_KEY
 
 if TYPE_CHECKING:
     from kiro_crew.dashboard.chat_runner import (
@@ -526,8 +527,17 @@ def _has_user_queued_followup(slot: "_ChatSlot") -> bool:
     The promise-only guards use this to decide "did the USER intervene". Every
     entry that is runner/system orchestration (`_queue_entry_is_orchestration`) is
     excluded; anything left is user speech, which must block or purge a pending
-    recovery so the user's intent wins."""
-    return any(not _queue_entry_is_orchestration(q) for q in getattr(slot, "_queue", []))
+    recovery so the user's intent wins.
+
+    A restored card the user has not sent is excluded too: no drain runs it, so
+    it is not a follow-up that takes over from a retry, continuation or replay.
+    Counting it would switch those off for as long as the card waits. A restored
+    card the user chose to run counts like any other entry."""
+    return any(
+        not _queue_entry_is_orchestration(q)
+        and not (q.get(RESTORED_QUEUE_KEY) and not q.get(RESTORED_SEND_CHOSEN_KEY))
+        for q in getattr(slot, "_queue", [])
+    )
 
 
 def _drop_stale_admissions(state: DashboardState, slot: _ChatSlot) -> None:
