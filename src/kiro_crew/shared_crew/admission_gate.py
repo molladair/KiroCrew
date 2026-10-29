@@ -1724,6 +1724,20 @@ async def current_service() -> AdmissionService:
         return service
 
 
+async def hold_until_startup_check() -> None:
+    """Before the bind: with hard limits asked for, refuse runtime starts until checked.
+
+    Reads config only. The service, its durable store and the containment probe
+    are built by :func:`startup_check` after the bind (or by the first use, as
+    without this hook); until it publishes its report, hard-limit mode refuses
+    as an unproven probe.
+    """
+    if await asyncio.to_thread(_configured_hard_limits):
+        _containment.publish_report(
+            _containment.failed_report(hard_limits=True, detail="startup containment check pending")
+        )
+
+
 async def startup_check() -> _containment.ContainmentReport | None:
     """Probe containment at gateway start; in hard-limit mode a missing piece is fatal.
 
@@ -1736,6 +1750,8 @@ async def startup_check() -> _containment.ContainmentReport | None:
         service = await current_service()
         if not service.enabled:
             if not service.limits.hard_limits:
+                # Clears a pending hold placed before the bind (hard limits since turned off).
+                _containment.publish_report(None)
                 return None
             report = _containment.admission_off_report()
             _containment.publish_report(report)
@@ -1963,6 +1979,7 @@ __all__ = [
     "attest_internal_session",
     "admit_and_run",
     "current_service",
+    "hold_until_startup_check",
     "idempotency_key_of",
     "install_service",
     "installed_service",
